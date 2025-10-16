@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestor de Facturas (Local)</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo">📄</div>
+          <div class="title">Facturas Local</div>
+        </div>
+
+        <button id="btn-new" class="btn primary">+ Nueva factura</button>
+
+        <section class="panel">
+          <h3>Filtros</h3>
+          <form id="filters-form">
+            <label>
+              Tipo
+              <select id="filter-type">
+                <option value="">Todos</option>
+                <option value="emitida">Emitidas</option>
+                <option value="recibida">Recibidas</option>
+              </select>
+            </label>
+            <label>
+              Categoría
+              <input id="filter-category" type="text" placeholder="p.ej. ventas" />
+            </label>
+            <label>
+              Desde
+              <input id="filter-from" type="date" />
+            </label>
+            <label>
+              Hasta
+              <input id="filter-to" type="date" />
+            </label>
+            <label class="row">
+              <input id="filter-archived" type="checkbox" /> Incluir archivadas
+            </label>
+            <label>
+              Buscar
+              <input id="filter-search" type="text" placeholder="cliente/proveedor, concepto..." />
+            </label>
+            <div class="row gap">
+              <button type="submit" class="btn">Aplicar</button>
+              <button type="button" id="btn-clear-filters" class="btn secondary">Limpiar</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h3>Exportar / Copia</h3>
+          <div class="col gap">
+            <button id="btn-export-json" class="btn">Exportar JSON</button>
+            <button id="btn-export-csv" class="btn">Exportar CSV</button>
+            <label class="file-label">
+              Importar/Restaurar JSON
+              <input id="input-import" type="file" accept="application/json" />
+            </label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Ajustes</h3>
+          <label>
+            IRPF % (estimado)
+            <input id="input-irpf" type="number" step="0.1" min="0" max="100" />
+          </label>
+          <label class="row">
+            <input id="toggle-theme" type="checkbox" /> Modo oscuro
+          </label>
+        </section>
+
+        <footer class="muted">
+          <small>Funciona 100% local (IndexedDB)</small>
+        </footer>
+      </aside>
+
+      <main class="main">
+        <section class="dashboard">
+          <div class="card">
+            <div class="label">Total facturado (emitidas)</div>
+            <div class="value" id="kpi-total-emitidas">0,00 €</div>
+          </div>
+          <div class="card">
+            <div class="label">Total gastos (recibidas)</div>
+            <div class="value" id="kpi-total-recibidas">0,00 €</div>
+          </div>
+          <div class="card">
+            <div class="label">Beneficio neto</div>
+            <div class="value" id="kpi-beneficio">0,00 €</div>
+          </div>
+          <div class="card">
+            <div class="label">IVA emitido</div>
+            <div class="value" id="kpi-iva-emitido">0,00 €</div>
+          </div>
+          <div class="card">
+            <div class="label">IVA soportado</div>
+            <div class="value" id="kpi-iva-soportado">0,00 €</div>
+          </div>
+          <div class="card">
+            <div class="label">Saldo IVA</div>
+            <div class="value" id="kpi-iva-saldo">0,00 €</div>
+          </div>
+          <div class="card small">
+            <div class="label">Nº emitidas</div>
+            <div class="value" id="kpi-count-emitidas">0</div>
+          </div>
+          <div class="card small">
+            <div class="label">Nº recibidas</div>
+            <div class="value" id="kpi-count-recibidas">0</div>
+          </div>
+        </section>
+
+        <section class="charts">
+          <div class="chart">
+            <header>Por categoría</header>
+            <canvas id="chart-categoria" width="600" height="280"></canvas>
+          </div>
+          <div class="chart">
+            <header>Por mes</header>
+            <canvas id="chart-mes" width="600" height="280"></canvas>
+          </div>
+        </section>
+
+        <section class="list">
+          <header class="row between center">
+            <h2>Facturas</h2>
+            <div class="muted" id="list-counter">0 elementos</div>
+          </header>
+          <div class="table-wrap">
+            <table class="table" id="table-invoices">
+              <thead>
+                <tr>
+                  <th>Nº</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Cliente/Proveedor</th>
+                  <th>Concepto</th>
+                  <th class="num">Base</th>
+                  <th class="num">IVA %</th>
+                  <th class="num">IVA</th>
+                  <th class="num">Total</th>
+                  <th>Pago</th>
+                  <th>Categoría</th>
+                  <th>PDF</th>
+                  <th>Arch.</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-invoices"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal formulario -->
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-content">
+        <header class="row between center">
+          <h3 id="modal-title">Nueva factura</h3>
+          <button id="btn-close-modal" class="icon-btn" aria-label="Cerrar">✕</button>
+        </header>
+        <form id="form-invoice" class="grid two-col">
+          <input type="hidden" id="inv-id" />
+
+          <label>
+            Nº factura
+            <input id="inv-number" type="text" required />
+          </label>
+          <label>
+            Fecha
+            <input id="inv-date" type="date" required />
+          </label>
+          <label>
+            Tipo
+            <select id="inv-type" required>
+              <option value="emitida">Emitida</option>
+              <option value="recibida">Recibida</option>
+            </select>
+          </label>
+          <label>
+            Cliente/Proveedor
+            <input id="inv-entity" type="text" required />
+          </label>
+          <label class="col-span">
+            Concepto
+            <input id="inv-concept" type="text" required />
+          </label>
+          <label>
+            Base imponible
+            <input id="inv-base" type="number" step="0.01" min="0" required />
+          </label>
+          <label>
+            IVA %
+            <input id="inv-iva" type="number" step="0.01" min="0" value="21" />
+          </label>
+          <label>
+            Total
+            <input id="inv-total" type="number" step="0.01" min="0" readonly />
+          </label>
+          <label>
+            Forma de pago
+            <input id="inv-payment" type="text" placeholder="transferencia, tarjeta, efectivo..." />
+          </label>
+          <label>
+            Categoría
+            <input id="inv-category" type="text" placeholder="ventas, servicios, materiales..." />
+          </label>
+          <label class="col-span">
+            Notas
+            <textarea id="inv-notes" rows="2"></textarea>
+          </label>
+          <label>
+            Ruta PDF (opcional)
+            <input id="inv-pdfpath" type="text" placeholder="ruta local o URL" />
+          </label>
+          <label>
+            Adjuntar PDF (para previsualizar)
+            <input id="inv-pdf-file" type="file" accept="application/pdf" />
+          </label>
+
+          <div class="row gap col-span">
+            <label class="row">
+              <input id="inv-archived" type="checkbox" /> Archivada
+            </label>
+            <div class="flex-1"></div>
+            <button type="button" id="btn-cancel" class="btn secondary">Cancelar</button>
+            <button type="submit" class="btn primary">Guardar</button>
+          </div>
+          <div class="col-span pdf-preview">
+            <iframe id="pdf-preview" title="Vista previa PDF"></iframe>
+            <p class="muted small">Nota: los navegadores pueden bloquear el acceso a rutas locales por seguridad. Puede requerir volver a seleccionar el archivo para previsualizar.</p>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+  </html>
+
